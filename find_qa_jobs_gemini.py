@@ -44,8 +44,11 @@ PROMPT = (
 
 def buscar_ofertas() -> str:
     response = requests.post(
-        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-        headers={"content-type": "application/json"},
+        GEMINI_URL,
+        headers={
+            "content-type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY,
+        },
         json={
             "contents": [{"parts": [{"text": PROMPT}]}],
             "tools": [{"google_search": {}}],
