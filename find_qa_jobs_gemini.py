@@ -23,8 +23,8 @@ EMAIL_APP_PASSWORD = os.environ["EMAIL_APP_PASSWORD"]
 EMAIL_TO = os.environ["EMAIL_TO"]
 
 GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-flash-latest:generateContent"
+    "https://www.google.com/"
+    
 )
 
 PROMPT = (
