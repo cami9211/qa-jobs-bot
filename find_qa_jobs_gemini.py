@@ -26,13 +26,15 @@ GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "gemini-flash-latest:generateContent"
 )
-
 PROMPT = (
-    "Busca ofertas de empleo publicadas en las ultimas 24-48 horas para "
-    "'QA Engineer' o 'QA Analyst' o 'QA Tester', nivel senior o semi-senior, "
-    "100% remoto, abiertas a candidatos en Colombia o Latinoamerica. "
-    "Revisa fuentes como LinkedIn Jobs, Get on Board, Workana, RemoteOK, "
-    "We Work Remotely y paginas de empleo de empresas tech. "
+    "Busca en Google usando el buscador de empleos integrado 'Google para "
+    "Empleos' (Google Jobs) ofertas publicadas en las ultimas 24-48 horas "
+    "para 'QA Engineer' o 'QA Analyst' o 'QA Tester', nivel senior o "
+    "semi-senior, 100% remoto, abiertas a candidatos en Colombia o "
+    "Latinoamerica. Usa consultas de busqueda como 'QA Engineer remoto "
+    "empleos' o 'QA Tester senior remoto Latinoamerica empleos' para activar "
+    "los resultados del panel de Google para Empleos, y revisa esos "
+    "resultados en vez de blogs o articulos genericos. "
     "Para cada oferta que encuentres, entrega en texto plano (sin markdown): "
     "nombre de la empresa, titulo del cargo, modalidad, un resumen de 1 linea "
     "de los requisitos clave, y el link directo a la oferta. "
