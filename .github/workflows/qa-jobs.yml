@@ -3,7 +3,7 @@ name: Buscar ofertas QA diarias
 on:
   schedule:
     # 13:00 UTC = 8:00 AM hora Colombia (UTC-5), todos los dias
-    - cron: "0 13 * * *"
+    - cron: "03 16 * * *"
   workflow_dispatch: {} # permite ejecutarlo manualmente desde la pestaña Actions
 
 jobs:
