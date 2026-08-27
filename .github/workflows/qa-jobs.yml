@@ -1,3 +1,10 @@
+      - name: Mostrar hora del runner
+        run: |
+          echo "UTC:"
+          date -u +"%Y-%m-%d %H:%M:%SZ"
+          echo "America/Bogota:"
+          TZ="America/Bogota" date +"%Y-%m-%d %H:%M:%S %Z %z"
+          
 name: Buscar ofertas QA diarias
 
 on:
