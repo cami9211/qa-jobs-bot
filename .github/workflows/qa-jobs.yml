@@ -2,14 +2,10 @@ name: Buscar ofertas QA diarias
 
 on:
   schedule:
-    # 02:02 UTC = 21:02 Colombia (UTC-5), todos los días
-    - cron: "05 02 * * *"
+    # 13:00 UTC = 8:00 AM hora Colombia (UTC-5), todos los dias
+    - cron: "0 13 * * *"
   workflow_dispatch: {} # permite ejecutarlo manualmente desde la pestaña Actions
- run: |
-          echo "UTC:"
-          date -u +"%Y-%m-%d %H:%M:%SZ"
-          echo "America/Bogota:"
-          TZ="America/Bogota" date +"%Y-%m-%d %H:%M:%S %Z %z"
+
 jobs:
   buscar-ofertas:
     runs-on: ubuntu-latest
@@ -27,8 +23,8 @@ jobs:
 
       - name: Ejecutar busqueda y enviar correo
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-        run: python find_qa_jobs_gemini.py
+        run: python find_qa_jobs.py
