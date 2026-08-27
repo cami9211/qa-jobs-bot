@@ -1,17 +1,15 @@
 name: Buscar ofertas QA diarias
 
 on:
-      - name: Mostrar hora del runner
-        run: |
-          echo "UTC:"
-          date -u +"%Y-%m-%d %H:%M:%SZ"
-          echo "America/Bogota:"
-          TZ="America/Bogota" date +"%Y-%m-%d %H:%M:%S %Z %z"
   schedule:
     # 02:02 UTC = 21:02 Colombia (UTC-5), todos los días
     - cron: "05 02 * * *"
   workflow_dispatch: {} # permite ejecutarlo manualmente desde la pestaña Actions
-
+ run: |
+          echo "UTC:"
+          date -u +"%Y-%m-%d %H:%M:%SZ"
+          echo "America/Bogota:"
+          TZ="America/Bogota" date +"%Y-%m-%d %H:%M:%S %Z %z"
 jobs:
   buscar-ofertas:
     runs-on: ubuntu-latest
