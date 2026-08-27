@@ -2,8 +2,8 @@ name: Buscar ofertas QA diarias
 
 on:
   schedule:
-    # 13:00 UTC = 8:00 AM hora Colombia (UTC-5), todos los dias
-    - cron: "0 13 * * *"
+    # 02:35 UTC = 9:35 PM hora Colombia (UTC-5), todos los dias
+    - cron: "35 2 * * *"
   workflow_dispatch: {} # permite ejecutarlo manualmente desde la pestaña Actions
 
 jobs:
@@ -23,8 +23,8 @@ jobs:
 
       - name: Ejecutar busqueda y enviar correo
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-        run: python find_qa_jobs.py
+        run: python find_qa_jobs_gemini.py
