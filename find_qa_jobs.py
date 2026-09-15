@@ -1,223 +1,186 @@
 import os
 import smtplib
-import time
-import requests
 
 from email.mime.text import MIMEText
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from playwright.sync_api import sync_playwright
 
 
 # ============================================================
 # CONFIGURACIÓN
 # ============================================================
 
-URL_MAGNETO = "https://www.magneto365.com/co"
+URL_MAGNETO = (
+    "https://www.magneto365.com/co/"
+    "trabajos/ofertas-empleo-de-analista-prueba-software"
+)
 
 EMAIL_ADDRESS = os.environ["EMAIL_ADDRESS"]
 EMAIL_APP_PASSWORD = os.environ["EMAIL_APP_PASSWORD"]
 EMAIL_TO = os.environ["EMAIL_TO"]
 
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) "
-        "AppleWebKit/537.36 "
-        "(KHTML, like Gecko) "
-        "Chrome/140.0.0.0 Safari/537.36"
-    ),
-    "Accept": (
-        "text/html,application/xhtml+xml,"
-        "application/xml;q=0.9,image/avif,"
-        "image/webp,*/*;q=0.8"
-    ),
-    "Accept-Language": "es-CO,es;q=0.9,en;q=0.8",
-    "Connection": "keep-alive",
-}
+# ============================================================
+# PALABRAS CLAVE
+# ============================================================
+
+PALABRAS_QA = [
+    "qa",
+    "tester",
+    "testing",
+    "quality assurance",
+    "analista de pruebas",
+    "ingeniero de pruebas",
+    "automatización de pruebas",
+    "automatizacion de pruebas",
+    "pruebas de software",
+]
 
 
 # ============================================================
-# CONSULTAR MAGNETO
+# BUSCAR OFERTAS EN MAGNETO
 # ============================================================
 
-def consultar_magneto():
+def buscar_ofertas():
 
     print("=" * 70)
     print("CONSULTANDO MAGNETO365")
     print("=" * 70)
     print()
-    print(f"URL: {URL_MAGNETO}")
-    print()
-
-    for intento in range(1, 4):
-
-        print(
-            f"Intento {intento}/3..."
-        )
-
-        try:
-
-            respuesta = requests.get(
-                URL_MAGNETO,
-                headers=HEADERS,
-                timeout=(15, 90),
-                allow_redirects=True,
-            )
-
-            print(
-                f"HTTP: {respuesta.status_code}"
-            )
-
-            print(
-                f"URL final: {respuesta.url}"
-            )
-
-            print(
-                f"Tamaño recibido: "
-                f"{len(respuesta.content)} bytes"
-            )
-
-            print()
-
-            respuesta.raise_for_status()
-
-            return respuesta.text
-
-        except requests.exceptions.Timeout:
-
-            print(
-                "Magneto tardó demasiado en responder."
-            )
-
-            if intento < 3:
-                print(
-                    "Esperando 5 segundos antes "
-                    "del siguiente intento..."
-                )
-                time.sleep(5)
-
-        except requests.exceptions.RequestException as error:
-
-            print(
-                f"Error de conexión: {error}"
-            )
-
-            if intento < 3:
-                print(
-                    "Esperando 5 segundos antes "
-                    "del siguiente intento..."
-                )
-                time.sleep(5)
-
-    raise RuntimeError(
-        "No fue posible acceder a Magneto365 "
-        "después de 3 intentos."
-    )
-
-
-# ============================================================
-# BUSCAR ENLACES
-# ============================================================
-
-def buscar_enlaces(html):
-
-    soup = BeautifulSoup(
-        html,
-        "html.parser"
-    )
-
-    resultados = []
-    vistos = set()
-
-    print("=" * 70)
-    print("BUSCANDO OFERTAS")
-    print("=" * 70)
-    print()
-
-    for enlace in soup.find_all(
-        "a",
-        href=True
-    ):
-
-        href = enlace.get(
-            "href",
-            ""
-        ).strip()
-
-        titulo = enlace.get_text(
-            " ",
-            strip=True
-        )
-
-        if not href:
-            continue
-
-        if not titulo:
-            continue
-
-        url = urljoin(
-            URL_MAGNETO,
-            href
-        )
-
-        if "/co/empleos/" not in url:
-            continue
-
-        if url in vistos:
-            continue
-
-        vistos.add(url)
-
-        resultados.append({
-            "titulo": titulo,
-            "url": url,
-        })
-
-    print(
-        f"Enlaces de empleo encontrados: "
-        f"{len(resultados)}"
-    )
-
-    return resultados
-
-
-# ============================================================
-# FILTRAR QA
-# ============================================================
-
-def filtrar_qa(resultados):
-
-    palabras = [
-        "qa",
-        "tester",
-        "testing",
-        "quality assurance",
-        "analista de pruebas",
-        "ingeniero de pruebas",
-        "automatización de pruebas",
-        "automatizacion de pruebas",
-        "pruebas de software",
-    ]
 
     ofertas = []
 
-    for oferta in resultados:
+    with sync_playwright() as p:
 
-        titulo = oferta["titulo"].lower()
+        navegador = p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+            ],
+        )
 
-        for palabra in palabras:
+        pagina = navegador.new_page(
+            viewport={
+                "width": 1440,
+                "height": 900,
+            },
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/140.0.0.0 Safari/537.36"
+            ),
+        )
 
-            if palabra in titulo:
+        print("Abriendo Magneto...")
+        print(URL_MAGNETO)
+        print()
 
-                ofertas.append(oferta)
+        pagina.goto(
+            URL_MAGNETO,
+            wait_until="domcontentloaded",
+            timeout=120000,
+        )
 
-                break
+        print(
+            "Página cargada."
+        )
+
+        # Esperar a que aparezca el contenido.
+        pagina.wait_for_timeout(8000)
+
+        print(
+            "Contenido cargado."
+        )
+
+        # ----------------------------------------------------
+        # OBTENER TODOS LOS ENLACES
+        # ----------------------------------------------------
+
+        enlaces = pagina.locator(
+            "a[href]"
+        )
+
+        cantidad = enlaces.count()
+
+        print(
+            f"Enlaces encontrados en la página: "
+            f"{cantidad}"
+        )
+
+        vistos = set()
+
+        for i in range(cantidad):
+
+            enlace = enlaces.nth(i)
+
+            try:
+
+                href = enlace.get_attribute(
+                    "href"
+                )
+
+                titulo = enlace.inner_text(
+                    timeout=3000
+                ).strip()
+
+            except Exception:
+
+                continue
+
+            if not href:
+                continue
+
+            if not titulo:
+                continue
+
+            # Convertir URL relativa en absoluta.
+            if href.startswith("/"):
+
+                href = (
+                    "https://www.magneto365.com"
+                    + href
+                )
+
+            # Solo ofertas individuales.
+            if "/co/empleos/" not in href:
+                continue
+
+            # Evitar duplicados.
+            if href in vistos:
+                continue
+
+            vistos.add(href)
+
+            titulo_minuscula = (
+                titulo.lower()
+            )
+
+            # ------------------------------------------------
+            # FILTRO QA
+            # ------------------------------------------------
+
+            es_qa = any(
+                palabra in titulo_minuscula
+                for palabra in PALABRAS_QA
+            )
+
+            if not es_qa:
+                continue
+
+            ofertas.append({
+                "titulo": titulo,
+                "url": href,
+            })
+
+        navegador.close()
 
     return ofertas
 
 
 # ============================================================
-# REPORTE
+# GENERAR REPORTE
 # ============================================================
 
 def generar_reporte(ofertas):
@@ -226,26 +189,21 @@ def generar_reporte(ofertas):
         "OFERTAS QA - MAGNETO365",
         "=======================",
         "",
+        f"Total de ofertas encontradas: {len(ofertas)}",
+        "",
     ]
 
     if not ofertas:
 
         lineas.append(
-            "No se encontraron ofertas QA "
-            "en la página consultada."
+            "No se encontraron ofertas QA."
         )
 
         return "\n".join(lineas)
 
-    lineas.append(
-        f"Total: {len(ofertas)}"
-    )
-
-    lineas.append("")
-
     for numero, oferta in enumerate(
         ofertas,
-        1
+        start=1,
     ):
 
         lineas.append(
@@ -281,7 +239,7 @@ def enviar_correo(reporte):
     mensaje = MIMEText(
         reporte,
         "plain",
-        "utf-8"
+        "utf-8",
     )
 
     mensaje["Subject"] = (
@@ -294,18 +252,18 @@ def enviar_correo(reporte):
     with smtplib.SMTP_SSL(
         "smtp.gmail.com",
         465,
-        timeout=30
+        timeout=30,
     ) as servidor:
 
         servidor.login(
             EMAIL_ADDRESS,
-            EMAIL_APP_PASSWORD
+            EMAIL_APP_PASSWORD,
         )
 
         servidor.sendmail(
             EMAIL_ADDRESS,
             [EMAIL_TO],
-            mensaje.as_string()
+            mensaje.as_string(),
         )
 
     print(
@@ -321,42 +279,54 @@ def main():
 
     print()
     print("=" * 70)
-    print("BUSCADOR QA - MAGNETO365")
+    print("BUSCADOR DE OFERTAS QA")
+    print("=" * 70)
+    print("Fuente: Magneto365")
+    print("Método: navegador Chromium")
+    print("Google: NO")
+    print("Gemini: NO")
+    print("Claude: NO")
+    print("API de búsqueda: NO")
     print("=" * 70)
     print()
 
-    # 1. Consultar Magneto
-    html = consultar_magneto()
+    try:
 
-    # 2. Buscar ofertas
-    resultados = buscar_enlaces(html)
+        ofertas = buscar_ofertas()
 
-    # 3. Filtrar QA
-    ofertas = filtrar_qa(resultados)
+        print()
+        print("=" * 70)
+        print(
+            f"OFERTAS QA ENCONTRADAS: "
+            f"{len(ofertas)}"
+        )
+        print("=" * 70)
+        print()
 
-    print()
-    print(
-        f"Ofertas QA encontradas: "
-        f"{len(ofertas)}"
-    )
+        reporte = generar_reporte(
+            ofertas
+        )
 
-    # 4. Generar reporte
-    reporte = generar_reporte(
-        ofertas
-    )
+        print(reporte)
 
-    print()
-    print(reporte)
+        enviar_correo(
+            reporte
+        )
 
-    # 5. Enviar correo
-    enviar_correo(
-        reporte
-    )
+        print()
+        print("=" * 70)
+        print("PROCESO TERMINADO CORRECTAMENTE")
+        print("=" * 70)
 
-    print()
-    print("=" * 70)
-    print("PROCESO FINALIZADO")
-    print("=" * 70)
+    except Exception as error:
+
+        print()
+        print("=" * 70)
+        print("ERROR")
+        print("=" * 70)
+        print(error)
+
+        raise
 
 
 if __name__ == "__main__":
