@@ -1,4 +1,3 @@
-```python
 import os
 import smtplib
 import requests
@@ -296,4 +295,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
