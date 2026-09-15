@@ -1,1 +1,30 @@
+name: Buscar ofertas QA diarias
 
+on:
+  schedule:
+    # Corre cada minuto (SOLO PARA PRUEBAS)
+    - cron: "* * * * *"
+  workflow_dispatch: {} # permite ejecutarlo manualmente desde la pestaña Actions
+
+jobs:
+  buscar-ofertas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install requests
+
+      - name: Ejecutar busqueda y enviar correo
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python find_qa_jobs_gemini.py
