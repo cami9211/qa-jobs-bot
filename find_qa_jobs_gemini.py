@@ -1,94 +1,150 @@
-"""
-Busca ofertas de empleo QA (senior/semi-senior, remoto) usando la API GRATUITA
-de Gemini (Google) con búsqueda web integrada, y envía el resumen por correo.
-
-Variables de entorno requeridas (se configuran como GitHub Secrets):
-- GEMINI_API_KEY      : tu API key gratuita de Google AI Studio (aistudio.google.com)
-- EMAIL_ADDRESS       : correo Gmail desde el que se envía (ej: tucuenta@gmail.com)
-- EMAIL_APP_PASSWORD  : contraseña de aplicación de Gmail (NO tu contraseña normal)
-- EMAIL_TO            : correo destino donde quieres recibir el reporte
-"""
-
+```python
 import os
 import smtplib
-import sys
+import requests
+
+from bs4 import BeautifulSoup
 from datetime import date
 from email.mime.text import MIMEText
 
-import requests
 
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 EMAIL_ADDRESS = os.environ["EMAIL_ADDRESS"]
 EMAIL_APP_PASSWORD = os.environ["EMAIL_APP_PASSWORD"]
 EMAIL_TO = os.environ["EMAIL_TO"]
 
-GEMINI_URL = (
-    "https://www.google.com/"
-    
-)
 
-PROMPT = (
-    "Busca ofertas de empleo publicadas en las ultimas 24-48 horas para "
-    "'QA Engineer' o 'QA Analyst' o 'QA Tester', nivel senior o semi-senior, "
-    "100% remoto, abiertas a candidatos en Colombia o Latinoamerica. "
-    "Revisa fuentes como LinkedIn Jobs, Get on Board, Workana, RemoteOK, "
-    "We Work Remotely y paginas de empleo de empresas tech. "
-    "Para cada oferta que encuentres, entrega en texto plano (sin markdown): "
-    "nombre de la empresa, titulo del cargo, modalidad, un resumen de 1 linea "
-    "de los requisitos clave, y el link directo a la oferta. "
-    "Si no encuentras ofertas nuevas relevantes, responde exactamente: "
-    "'Sin novedades hoy.' No inventes ofertas ni links; solo incluye lo que "
-    "confirmes con la busqueda."
-)
+BUSQUEDAS = [
+    '"QA Engineer" senior remote Colombia',
+    '"QA Engineer" semi senior remote Colombia',
+    '"QA Analyst" senior remote Colombia',
+    '"QA Analyst" semi senior remote Colombia',
+    '"QA Tester" senior remote Colombia',
+    '"QA Tester" semi senior remote Colombia',
+]
 
 
-def buscar_ofertas() -> str:
-    response = requests.post(
-        GEMINI_URL,
-        headers={
-            "content-type": "application/json",
-            "x-goog-api-key": GEMINI_API_KEY,
-        },
-        json={
-            "contents": [{"parts": [{"text": PROMPT}]}],
-            "tools": [{"google_search": {}}],
-        },
-        timeout=120,
+def buscar_google(query):
+
+    url = "https://www.google.com/search"
+
+    params = {
+        "q": query,
+        "num": 10,
+        "hl": "es",
+        "gl": "co",
+    }
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/140.0.0.0 Safari/537.36"
+        )
+    }
+
+    response = requests.get(
+        url,
+        params=params,
+        headers=headers,
+        timeout=30,
     )
+
     response.raise_for_status()
-    data = response.json()
 
-    candidatos = data.get("candidates", [])
-    if not candidatos:
-        return "No se recibio respuesta del modelo."
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    partes = candidatos[0].get("content", {}).get("parts", [])
-    texto = "\n".join(p.get("text", "") for p in partes if p.get("text"))
-    return texto.strip() or "No se recibio texto en la respuesta."
+    resultados = []
+
+    for resultado in soup.select("div.MjjYud"):
+
+        enlace = resultado.select_one("a")
+        titulo = resultado.select_one("h3")
+
+        if not enlace or not titulo:
+            continue
+
+        link = enlace.get("href")
+
+        if not link or not link.startswith("http"):
+            continue
+
+        descripcion = resultado.select_one(".VwiC3b")
+
+        resultados.append({
+            "titulo": titulo.get_text(" ", strip=True),
+            "link": link,
+            "descripcion": (
+                descripcion.get_text(" ", strip=True)
+                if descripcion
+                else ""
+            )
+        })
+
+    return resultados
 
 
-def enviar_correo(cuerpo: str) -> None:
+def main():
+
+    resultados = []
+    links = set()
+
+    for busqueda in BUSQUEDAS:
+
+        print(f"Buscando: {busqueda}")
+
+        for resultado in buscar_google(busqueda):
+
+            if resultado["link"] in links:
+                continue
+
+            links.add(resultado["link"])
+            resultados.append(resultado)
+
+    if not resultados:
+        reporte = "Sin novedades hoy."
+
+    else:
+
+        reporte = []
+
+        for i, resultado in enumerate(resultados, 1):
+
+            reporte.append(
+                f"{i}. {resultado['titulo']}\n"
+                f"{resultado['descripcion']}\n"
+                f"{resultado['link']}\n"
+            )
+
+        reporte = "\n".join(reporte)
+
+    print(reporte)
+
     hoy = date.today().strftime("%d/%m/%Y")
-    mensaje = MIMEText(cuerpo, "plain", "utf-8")
-    mensaje["Subject"] = f"Ofertas QA del {hoy}"
+
+    mensaje = MIMEText(
+        reporte,
+        "plain",
+        "utf-8"
+    )
+
+    mensaje["Subject"] = f"Ofertas QA MASTER PEREIRA del {hoy}"
     mensaje["From"] = EMAIL_ADDRESS
     mensaje["To"] = EMAIL_TO
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
-        servidor.login(EMAIL_ADDRESS, EMAIL_APP_PASSWORD)
-        servidor.sendmail(EMAIL_ADDRESS, [EMAIL_TO], mensaje.as_string())
 
+        servidor.login(
+            EMAIL_ADDRESS,
+            EMAIL_APP_PASSWORD
+        )
 
-def main() -> None:
-    try:
-        resultado = buscar_ofertas()
-    except Exception as exc:  # noqa: BLE001
-        resultado = f"Ocurrio un error al buscar las ofertas: {exc}"
-        print(resultado, file=sys.stderr)
-
-    enviar_correo(resultado)
-    print("Correo enviado correctamente.")
+        servidor.sendmail(
+            EMAIL_ADDRESS,
+            EMAIL_TO,
+            mensaje.as_string()
+        )
 
 
 if __name__ == "__main__":
     main()
+```
