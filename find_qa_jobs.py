@@ -1,12 +1,16 @@
+```python
 """
-Busca ofertas de empleo QA (senior/semi-senior, remoto) usando la API de Claude
-con la herramienta de búsqueda web, y envía el resumen por correo.
+Busca ofertas de empleo QA (Senior/Semi-Senior, remoto) directamente
+en Google y envía los resultados por correo.
 
-Variables de entorno requeridas (se configuran como GitHub Secrets):
-- ANTHROPIC_API_KEY   : tu API key de Anthropic (console.anthropic.com)
-- EMAIL_ADDRESS       : correo Gmail desde el que se envía (ej: tucuenta@gmail.com)
-- EMAIL_APP_PASSWORD  : contraseña de aplicación de Gmail (NO tu contraseña normal)
-- EMAIL_TO            : correo destino donde quieres recibir el reporte
+NO utiliza inteligencia artificial.
+
+Variables de entorno requeridas (GitHub Secrets):
+- GOOGLE_API_KEY       : API Key de Google
+- GOOGLE_CX            : ID del buscador personalizado de Google
+- EMAIL_ADDRESS        : correo Gmail desde el que se envía
+- EMAIL_APP_PASSWORD   : contraseña de aplicación de Gmail
+- EMAIL_TO             : correo destino del reporte
 """
 
 import os
@@ -17,76 +21,236 @@ from email.mime.text import MIMEText
 
 import requests
 
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+
+# ============================================================
+# CONFIGURACIÓN
+# ============================================================
+
+GOOGLE_API_KEY = os.environ["GOOGLE_API_KEY"]
+GOOGLE_CX = os.environ["GOOGLE_CX"]
+
 EMAIL_ADDRESS = os.environ["EMAIL_ADDRESS"]
 EMAIL_APP_PASSWORD = os.environ["EMAIL_APP_PASSWORD"]
 EMAIL_TO = os.environ["EMAIL_TO"]
 
-PROMPT = (
-    "Busca ofertas de empleo publicadas en las ultimas 24-48 horas para "
-    "'QA Engineer' o 'QA Analyst' o 'QA Tester', nivel senior o semi-senior, "
-    "100% remoto, abiertas a candidatos en Colombia o Latinoamerica. "
-    "Revisa fuentes como LinkedIn Jobs, Get on Board, Workana, RemoteOK, "
-    "We Work Remotely y paginas de empleo de empresas tech. "
-    "Para cada oferta que encuentres, entrega en texto plano (sin markdown): "
-    "nombre de la empresa, titulo del cargo, modalidad, un resumen de 1 linea "
-    "de los requisitos clave, y el link directo a la oferta. "
-    "Si no encuentras ofertas nuevas relevantes, responde exactamente: "
-    "'Sin novedades hoy.' No inventes ofertas ni links; solo incluye lo que "
-    "confirmes con la busqueda."
-)
+
+# ============================================================
+# BÚSQUEDAS EN GOOGLE
+# ============================================================
+
+BUSQUEDAS = [
+    '"QA Engineer" "Senior" remote Colombia',
+    '"QA Engineer" "Semi Senior" remote Colombia',
+    '"QA Analyst" "Senior" remote Colombia',
+    '"QA Analyst" "Semi Senior" remote Colombia',
+    '"QA Tester" "Senior" remote Colombia',
+    '"QA Tester" "Semi Senior" remote Colombia',
+
+    '"QA Engineer" remote Latin America',
+    '"QA Analyst" remote Latin America',
+    '"QA Tester" remote Latin America',
+
+    '"QA Automation Engineer" remote Colombia',
+    '"QA Automation" remote Latin America',
+]
 
 
-def buscar_ofertas() -> str:
-    response = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": "claude-sonnet-4-6",
-            "max_tokens": 2000,
-            "messages": [{"role": "user", "content": PROMPT}],
-            "tools": [{"type": "web_search_20250305", "name": "web_search"}],
-        },
-        timeout=120,
+# ============================================================
+# GOOGLE SEARCH API
+# ============================================================
+
+def buscar_google(query: str) -> list:
+    """
+    Ejecuta una búsqueda directamente en Google
+    utilizando Google Custom Search JSON API.
+    """
+
+    url = "https://www.googleapis.com/customsearch/v1"
+
+    parametros = {
+        "key": GOOGLE_API_KEY,
+        "cx": GOOGLE_CX,
+        "q": query,
+        "num": 10,
+        "dateRestrict": "d2",
+        "hl": "es",
+        "gl": "co",
+    }
+
+    response = requests.get(
+        url,
+        params=parametros,
+        timeout=30,
     )
+
     response.raise_for_status()
+
     data = response.json()
 
-    partes_texto = [
-        block.get("text", "")
-        for block in data.get("content", [])
-        if block.get("type") == "text"
-    ]
-    texto = "\n".join(p for p in partes_texto if p).strip()
-    return texto or "No se recibio respuesta de texto del modelo."
+    return data.get("items", [])
 
+
+# ============================================================
+# PROCESAR RESULTADOS
+# ============================================================
+
+def procesar_resultados() -> list:
+    """
+    Realiza todas las búsquedas y elimina resultados duplicados.
+    """
+
+    resultados = []
+    urls_vistas = set()
+
+    for query in BUSQUEDAS:
+
+        print(f"Buscando en Google: {query}")
+
+        try:
+            items = buscar_google(query)
+
+        except Exception as exc:
+            print(
+                f"Error en búsqueda '{query}': {exc}",
+                file=sys.stderr,
+            )
+            continue
+
+        for item in items:
+
+            titulo = item.get("title", "").strip()
+            link = item.get("link", "").strip()
+            descripcion = item.get("snippet", "").strip()
+
+            if not link:
+                continue
+
+            # Evitar duplicados
+            if link in urls_vistas:
+                continue
+
+            urls_vistas.add(link)
+
+            resultados.append(
+                {
+                    "titulo": titulo,
+                    "link": link,
+                    "descripcion": descripcion,
+                }
+            )
+
+    return resultados
+
+
+# ============================================================
+# GENERAR REPORTE
+# ============================================================
+
+def generar_reporte(resultados: list) -> str:
+
+    if not resultados:
+        return "Sin novedades hoy."
+
+    lineas = []
+
+    lineas.append("OFERTAS QA ENCONTRADAS EN GOOGLE")
+    lineas.append("=" * 60)
+    lineas.append("")
+
+    for i, resultado in enumerate(resultados, start=1):
+
+        lineas.append(f"{i}. {resultado['titulo']}")
+        lineas.append("")
+        lineas.append(
+            f"Resumen: {resultado['descripcion']}"
+        )
+        lineas.append("")
+        lineas.append(
+            f"Link: {resultado['link']}"
+        )
+        lineas.append("")
+        lineas.append("-" * 60)
+        lineas.append("")
+
+    return "\n".join(lineas)
+
+
+# ============================================================
+# ENVIAR CORREO
+# ============================================================
 
 def enviar_correo(cuerpo: str) -> None:
+
     hoy = date.today().strftime("%d/%m/%Y")
-    mensaje = MIMEText(cuerpo, "plain", "utf-8")
+
+    mensaje = MIMEText(
+        cuerpo,
+        "plain",
+        "utf-8",
+    )
+
     mensaje["Subject"] = f"Ofertas QA del {hoy}"
     mensaje["From"] = EMAIL_ADDRESS
     mensaje["To"] = EMAIL_TO
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
-        servidor.login(EMAIL_ADDRESS, EMAIL_APP_PASSWORD)
-        servidor.sendmail(EMAIL_ADDRESS, [EMAIL_TO], mensaje.as_string())
+    with smtplib.SMTP_SSL(
+        "smtp.gmail.com",
+        465,
+    ) as servidor:
 
+        servidor.login(
+            EMAIL_ADDRESS,
+            EMAIL_APP_PASSWORD,
+        )
+
+        servidor.sendmail(
+            EMAIL_ADDRESS,
+            [EMAIL_TO],
+            mensaje.as_string(),
+        )
+
+
+# ============================================================
+# MAIN
+# ============================================================
 
 def main() -> None:
-    try:
-        resultado = buscar_ofertas()
-    except Exception as exc:  # noqa: BLE001
-        resultado = f"Ocurrio un error al buscar las ofertas: {exc}"
-        print(resultado, file=sys.stderr)
 
-    enviar_correo(resultado)
-    print("Correo enviado correctamente.")
+    try:
+
+        resultados = procesar_resultados()
+
+        reporte = generar_reporte(resultados)
+
+        print(reporte)
+
+        enviar_correo(reporte)
+
+        print("")
+        print("Correo enviado correctamente.")
+
+    except Exception as exc:
+
+        mensaje_error = (
+            f"Ocurrio un error al buscar las ofertas: {exc}"
+        )
+
+        print(
+            mensaje_error,
+            file=sys.stderr,
+        )
+
+        try:
+            enviar_correo(mensaje_error)
+        except Exception as email_error:
+            print(
+                f"No fue posible enviar el correo: {email_error}",
+                file=sys.stderr,
+            )
+
+            raise
 
 
 if __name__ == "__main__":
     main()
+```
