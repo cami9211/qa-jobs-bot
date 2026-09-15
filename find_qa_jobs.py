@@ -127,7 +127,7 @@ def main():
         "utf-8"
     )
 
-    mensaje["Subject"] = f"Ofertas QA del {hoy}"
+    mensaje["Subject"] = f"Ofertas QA MASTER PEREIRA del {hoy}"
     mensaje["From"] = EMAIL_ADDRESS
     mensaje["To"] = EMAIL_TO
 
