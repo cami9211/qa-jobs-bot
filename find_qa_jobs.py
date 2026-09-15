@@ -65,7 +65,7 @@ def buscar_google(query: str) -> list:
     utilizando Google Custom Search JSON API.
     """
 
-    url = "https://www.googleapis.com/customsearch/v1"
+    url = "https://www.google.com/"
 
     parametros = {
         "key": GOOGLE_API_KEY,
